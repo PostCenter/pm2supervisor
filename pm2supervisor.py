@@ -180,32 +180,21 @@ class SupervisorGroup(object):
         """
 
         process_fullname = '{}:{}'.format(self.group_name, process_name)
-        instruction = self.STOP_CMD.format(process_fullname)
-        instruction_array = instruction.split(" ")
-
-        _, return_code = self._run_subprocess(instruction_array)
-
-        if return_code != 0:
-            logger.error(
-                self.DEFAULT_ERROR_MESSAGE.format(
-                    instruction, str(return_code)
+        if process_fullname not in self.children:
+            self.alert_mail(
+                'The process {} is not a child. It will not be stopped'.format(
+                    process_fullname
                 )
             )
             return False
-        else:
-            data = self.children.get(process_fullname, None)
 
-            if data is None:
-                self.alert_mail(
-                    'The stopped process {} was not a child'.format(
-                        process_fullname
-                    )
-                )
-                return False
-            else:
-                data['status'] = self.STATUS_STOPPED
+        success = self.stop_process(process_fullname)
 
-        return True
+        if success:
+            data = self.children.get(process_fullname, {})
+            data['status'] = self.STATUS_STOPPED
+
+        return success
 
     def remove(self, process_name):
         """
@@ -216,23 +205,19 @@ class SupervisorGroup(object):
         """
 
         process_fullname = '{}:{}'.format(self.group_name, process_name)
-        instruction = self.REMOVE_CMD.format(process_fullname)
-        instruction_array = instruction.split(" ")
-
-        _, return_code = self._run_subprocess(instruction_array)
-
-        if return_code != 0:
-            logger.error(
-                self.DEFAULT_ERROR_MESSAGE.format(
-                    instruction, str(return_code)
+        if process_fullname not in self.children:
+            self.alert_mail(
+                'The process {} is not a child. It will not be removed'.format(
+                    process_fullname
                 )
             )
             return False
-        else:
-            if process_fullname in self.children:
-                del self.children[process_fullname]
 
-        return True
+        success = self.remove_process(process_fullname)
+        if success:
+            del self.children[process_fullname]
+
+        return success
 
     def start(self, process_name):
         """
@@ -352,7 +337,8 @@ class SupervisorGroup(object):
 
         children = list()
 
-        for child in self.children:
+        for child_name in self.children:
+            child = self.children.get(child_name, {})
             child_data = {
                 'name': child.get('name'),
                 'status': child.get('status'),
@@ -402,6 +388,51 @@ class SupervisorGroup(object):
             if process.get('name') == process_name:
                 return process
         return None
+
+    @classmethod
+    def restart_process(cls, process_name):
+        """
+        Method to restart a process using his fullname
+        :param process_name:
+        :return:
+        """
+        instruction = cls.RESTART_CMD.format(process_name)
+        return cls._operation_over_process(instruction)
+
+    @classmethod
+    def stop_process(cls, process_name):
+        """
+        Method to stop a process using his fullname
+        :param process_name:
+        :return:
+        """
+        instruction = cls.STOP_CMD.format(process_name)
+        return cls._operation_over_process(instruction)
+
+    @classmethod
+    def remove_process(cls, process_name):
+        """
+        Method to remove a process using his fullname
+        :param process_name:
+        :return:
+        """
+        instruction = cls.REMOVE_CMD.format(process_name)
+        return cls._operation_over_process(instruction)
+
+    @classmethod
+    def _operation_over_process(cls, instruction):
+        instruction_array = instruction.split(" ")
+
+        _, return_code = cls._run_subprocess(instruction_array)
+
+        if return_code != 0:
+            logger.error(
+                cls.DEFAULT_ERROR_MESSAGE.format(
+                    instruction, str(return_code)
+                )
+            )
+            return False
+        return True
 
     @classmethod
     def _run_subprocess(cls, instructions):
