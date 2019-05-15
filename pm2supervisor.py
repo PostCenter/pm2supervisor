@@ -325,6 +325,50 @@ class SupervisorGroup(object):
             return False
         return self.create(process.name, process.commands)
 
+    def get_children_data(
+        self, force_refresh=False, get_uptime=False, get_pm2_status=False,
+        get_system=False, get_logs=False, get_execution=False
+    ):
+        """
+        Method to get a list of children with optional fields
+        :param force_refresh:
+        :param get_uptime:
+        :param get_pm2_status:
+        :param get_system:
+        :param get_logs:
+        :param get_execution:
+        :return:
+        """
+        if force_refresh:
+            self._recover_existent_processes()
+
+        children = list()
+
+        for child in self.children:
+            child_data = {
+                'name': child.get('name'),
+                'status': child.get('status'),
+            }
+
+            if get_uptime:
+                child_data['uptime'] = child.get('uptime')
+
+            if get_pm2_status:
+                child_data['pm2_status'] = child.get('pm2_status')
+
+            if get_system:
+                child_data['system'] = child.get('system')
+
+            if get_logs:
+                child_data['log'] = child.get('log')
+
+            if get_execution:
+                child_data['execution'] = child.get('execution')
+
+            children.append(child_data)
+
+        return children
+
     @classmethod
     def get_pm2_status(cls, process_name):
         """
