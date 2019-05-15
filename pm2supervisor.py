@@ -8,12 +8,15 @@ logger = logging.getLogger("pm2_to_supervisor")
 
 
 class SupervisorGroup(object):
+    STATUS_RUNNING = 'RUNNING'
     STATUS_STOPPED = 'NOT RUNNING'
+    STATUS_STARTING = 'STARTING'
+
     statuses_translator = {
-        'online': 'RUNNING',
+        'online': STATUS_RUNNING,
         'stopping': STATUS_STOPPED,
         'stopped': STATUS_STOPPED,
-        'launching': 'STARTING',
+        'launching': STATUS_STARTING,
     }
 
     RESTART_CMD = "pm2 restart {}"
@@ -155,6 +158,7 @@ class SupervisorGroup(object):
         Get a list with the process status.
         Method exposes as supervisor method.
         :param process_name:
+        :param force_update:
         :return: list[str]
         """
         if force_update:
@@ -192,10 +196,14 @@ class SupervisorGroup(object):
             data = self.children.get(process_fullname, None)
 
             if data is None:
-                self.alert_mail('The stopped process {} was not a child'.format(process_fullname))
+                self.alert_mail(
+                    'The stopped process {} was not a child'.format(
+                        process_fullname
+                    )
+                )
                 return False
             else:
-                data['status'] = 'NOT RUNNING'
+                data['status'] = self.STATUS_STOPPED
 
         return True
 
@@ -243,7 +251,7 @@ class SupervisorGroup(object):
             logger.error('Process doesnt exist: {}'.format(process_fullname))
             return False
 
-        data['status'] = 'STARTING'
+        data['status'] = self.STATUS_STARTING
         instruction = data.get('instruction', '')
         instruction_array = instruction.split(" ")
 
@@ -257,7 +265,7 @@ class SupervisorGroup(object):
             )
             return False
         else:
-            data['status'] = 'RUNNING'
+            data['status'] = self.STATUS_RUNNING
 
         return True
 
@@ -288,7 +296,7 @@ class SupervisorGroup(object):
             self.children[process_fullname] = {
                 'name': process_fullname,
                 'instruction': instruction,
-                'status': 'NOT RUNNING'
+                'status': self.STATUS_STOPPED
             }
         else:
             logger.debug('Process already exists')
