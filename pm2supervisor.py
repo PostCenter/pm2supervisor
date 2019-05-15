@@ -43,11 +43,16 @@ class SupervisorGroup(object):
         processes = self.get_all_processes()
         group_keyword = "{}:".format(self.group_name)
 
+        children_now = dict()
         for process in processes:
             name = process.get('name', '')
             if name.startswith(group_keyword):
                 process['instruction'] = self.RESTART_CMD.format(name)
-                self.children[name] = process
+                children_now[name] = process
+
+        # This prevent the issue of externally removed processes still appears
+        # as running or else.
+        self.children = children_now
 
     @classmethod
     def _calculate_uptime(cls, since):
@@ -131,18 +136,17 @@ class SupervisorGroup(object):
         Method exposes as supervisor method.
         :return: dict[str, str]
         """
-        processes = self.get_all_processes()
-
-        processes_summary = dict()
-        for process in processes:
-            processes_summary[process.get('name')] = process.get('status')
+        # This will refresh the children to the current state:
+        self._recover_existent_processes()
 
         group_processes = dict()
 
-        for key, value in self.children.items():
-            status = processes_summary.get(key, self.STATUS_STOPPED)
-            name_process = key.split(":")[-1]
-            group_processes[name_process] = status
+        for process_name in self.children:
+            process = self.children.get(process_name, {})
+            short_name = process_name.split(":")[-1]
+            group_processes[short_name] = process.get(
+                'status', self.STATUS_STOPPED
+            )
 
         return group_processes
 
